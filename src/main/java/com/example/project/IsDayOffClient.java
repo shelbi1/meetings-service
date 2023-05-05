@@ -1,8 +1,11 @@
 package com.example.project;
 
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -11,7 +14,7 @@ import java.time.LocalDateTime;
 public interface IsDayOffClient {
 
     @GetMapping("/{startDate}")
-    boolean isDayOff(@PathVariable("startDate") LocalDate startDate);
-
-    //boolean isDayOff(@PathVariable String startDate);
+    ResponseEntity<String> isDayOff(@PathVariable("startDate")
+                 @DateTimeFormat(pattern = "yyyy-MM-dd")
+                 final LocalDate startDate);
 }

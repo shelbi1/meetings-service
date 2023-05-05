@@ -3,19 +3,26 @@ package com.example.project.controller;
 import com.example.project.IsDayOffService;
 import com.example.project.exceptions.ErrorMessage;
 import com.example.project.exceptions.MeetingDayIsNotWorkDayException;
+import com.example.project.exceptions.ValidateMeetingException;
 import com.example.project.mapper.MeetingMapper;
 import com.example.project.exceptions.MeetingNotFoundException;
 import com.example.project.dao.MeetingDAO;
 import com.example.project.dto.MeetingDTO;
 import com.example.project.entity.Meeting;
+import feign.FeignException;
+import io.micrometer.core.instrument.config.validate.ValidationException;
+import org.apache.http.client.protocol.ResponseContentEncoding;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.UUID;
 
 
@@ -44,20 +51,43 @@ public class MainController {
     @PostMapping(value="/")
     public ResponseEntity<Meeting> saveMeeting(@ModelAttribute("meeting") Meeting meeting) {
 
-        if (meeting.getStartDate().isBefore(meeting.getEndDate())) {
+        try {
+            ValidateMeeting(meeting);
+            CheckMeetingDate(meeting);
+            meetingDAO.save(meeting);
+            return ResponseEntity.created(URI.create("/" + meeting.getId())).body(meeting);
 
-            if (!isDayOffService.isDayOff(meeting.getStartDate())) {
-                meetingDAO.save(meeting);
-                return ResponseEntity.created(URI.create("/" + meeting.getId())).body(meeting);
-            }
-            else {
-                Exception e = new MeetingDayIsNotWorkDayException("Meeting date is not work day");
-                return ResponseEntity.noContent().build();
-            }
         }
-        else {
-            return ResponseEntity.noContent().build();
+        
+        catch (ValidateMeetingException e) {
+            new ErrorMessage(e.getMessage());
+            return ResponseEntity.badRequest().build();
+
+        } catch (MeetingDayIsNotWorkDayException e) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(meeting);
         }
+    }
+
+    public void ValidateMeeting(Meeting meeting) throws ValidateMeetingException {
+        if (meeting.getStartDate().isAfter(meeting.getEndDate()))
+            throw new ValidateMeetingException("Meeting start day is after end day");
+    }
+
+    public void CheckMeetingDate(Meeting meeting) throws MeetingDayIsNotWorkDayException {
+
+        ResponseEntity<String> entity = isDayOffService.isDayOff(meeting.getStartDate().toLocalDate());
+
+        if (Objects.equals(entity.getBody(), "1"))
+            throw new MeetingDayIsNotWorkDayException("Meeting date is not work day");
+    }
+
+    @ExceptionHandler(ValidateMeetingException.class)
+    public ResponseEntity<ErrorMessage> handleException(@NotNull ValidateMeetingException exception) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorMessage(exception.getMessage()));
     }
 
     @ExceptionHandler(MeetingDayIsNotWorkDayException.class)
@@ -66,6 +96,7 @@ public class MainController {
                 .status(HttpStatus.CONFLICT)
                 .body(new ErrorMessage(exception.getMessage()));
     }
+
 
     @GetMapping(value = "/{id}")
     public ResponseEntity<Meeting> getMeeting (@PathVariable("id") UUID id) {
