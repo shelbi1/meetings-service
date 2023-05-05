@@ -13,8 +13,5 @@ public interface MeetingDAO extends JpaRepository<Meeting, UUID> {
 
     public UUID findByCreatedById(UUID id);
 
-    //public void saveDTO();
-
-
 }
 

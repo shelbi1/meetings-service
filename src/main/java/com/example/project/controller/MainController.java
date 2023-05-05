@@ -1,16 +1,21 @@
 package com.example.project.controller;
 
-import com.example.project.exception.MeetingNotFoundException;
+import com.example.project.IsDayOffService;
+import com.example.project.exceptions.ErrorMessage;
+import com.example.project.exceptions.MeetingDayIsNotWorkDayException;
+import com.example.project.mapper.MeetingMapper;
+import com.example.project.exceptions.MeetingNotFoundException;
 import com.example.project.dao.MeetingDAO;
 import com.example.project.dto.MeetingDTO;
 import com.example.project.entity.Meeting;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 import java.util.UUID;
 
 
@@ -20,6 +25,9 @@ public class MainController {
 
     @Autowired
     private MeetingDAO meetingDAO;
+
+    @Autowired
+    private IsDayOffService isDayOffService;
 
     @ResponseBody
     @RequestMapping("/")
@@ -35,9 +43,28 @@ public class MainController {
 
     @PostMapping(value="/")
     public ResponseEntity<Meeting> saveMeeting(@ModelAttribute("meeting") Meeting meeting) {
-        // проверка, что день рабочий
-        meetingDAO.save(meeting);
-        return ResponseEntity.created(URI.create("/" + meeting.getId())).body(meeting);
+
+        if (meeting.getStartDate().isBefore(meeting.getEndDate())) {
+
+            if (!isDayOffService.isDayOff(meeting.getStartDate())) {
+                meetingDAO.save(meeting);
+                return ResponseEntity.created(URI.create("/" + meeting.getId())).body(meeting);
+            }
+            else {
+                Exception e = new MeetingDayIsNotWorkDayException("Meeting date is not work day");
+                return ResponseEntity.noContent().build();
+            }
+        }
+        else {
+            return ResponseEntity.noContent().build();
+        }
+    }
+
+    @ExceptionHandler(MeetingDayIsNotWorkDayException.class)
+    public ResponseEntity<ErrorMessage> handleException(@NotNull MeetingDayIsNotWorkDayException exception) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ErrorMessage(exception.getMessage()));
     }
 
     @GetMapping(value = "/{id}")
@@ -48,22 +75,21 @@ public class MainController {
     }
 
     @PutMapping(value="/{id}")
-    public ResponseEntity<Meeting> editUser(@PathVariable("id") UUID id,
-                                            //@RequestBody MeetingDTO meetingDTO) {
-                                            @ModelAttribute("meeting") Meeting updatedMeeting) {
-
-        Meeting meeting = meetingDAO.findById(id).orElseThrow(() -> new MeetingNotFoundException("Meeting with ID: " + id + " is not found"));
-
-        //meetingDAO.saveDTO(meetingDTO);
+    public ResponseEntity<MeetingDTO> editUser(@PathVariable("id") UUID id,
+                                               @RequestBody MeetingDTO meetingDTO) {
 
 
-        meeting.setName(updatedMeeting.getName());
-        meeting.setInvitedUserId(updatedMeeting.getInvitedUserId());
-        meeting.setStartDate(updatedMeeting.getStartDate());
-        meeting.setEndDate(updatedMeeting.getEndDate());
-        meetingDAO.save(meeting);
+        //Meeting meeting = meetingDAO.findById(id).orElseThrow(() -> new MeetingNotFoundException("Meeting with ID: " + id + " is not found"));
 
-        return ResponseEntity.ok(meeting);
+        if (meetingDAO.existsById(id) && meetingDTO.getStartDate().isBefore(meetingDTO.getEndDate())) {
+            MeetingMapper meetingMapper = new MeetingMapper();
+            Meeting meetingEntity = meetingMapper.mapToMeetingEntity(meetingDTO);
+            meetingDAO.save(meetingEntity);
+            return ResponseEntity.ok(meetingDTO);
+        }
+        else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @DeleteMapping(value="/{id}")

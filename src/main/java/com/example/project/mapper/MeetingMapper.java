@@ -10,9 +10,9 @@ public class MeetingMapper {
     // entity в dto
     public MeetingDTO mapToMeetingDTO(Meeting entity) {
         MeetingDTO dto = new MeetingDTO();
-        dto.setId(entity.getId());
+        //dto.setId(entity.getId());
         dto.setName(entity.getName());
-        dto.setCreatedById(entity.getCreatedById());
+        //dto.setCreatedById(entity.getCreatedById());
         dto.setInvitedUserId(entity.getInvitedUserId());
         dto.setStartDate(entity.getStartDate());
         dto.setEndDate(entity.getEndDate());

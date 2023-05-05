@@ -5,7 +5,9 @@ import com.example.project.dto.MeetingDTO;
 import com.example.project.entity.Meeting;
 import com.example.project.mapper.MeetingMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PathVariable;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -27,9 +29,5 @@ public class MeetingService {
                 meetingDAO.findById(id) //поместили результат поиска по id
                         .orElse(new Meeting()) //если ни чего не нашли, то вернем пустой entity
         );
-    }
-
-    public Meeting saveDTO(MeetingDTO meetingDTO) {
-        return meetingMapper.mapToMeetingEntity(meetingDTO);
     }
 }
